@@ -187,4 +187,4 @@ def add_langgraph_route(app: FastAPI, graph, path: str):
 
         return DataStreamResponse(create_run(run))
 
-    app.add_api_route(path, chat_completions, methods=["POST"])
+    app.add_api_route(path, chat_completions, methods=["POST"], tags=["chat"])

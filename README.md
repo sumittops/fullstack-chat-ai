@@ -1,6 +1,5 @@
 # assistant-ui-langgraph-fastapi
 
-
 A demonstration project that combines LangGraph, assistant-stream, and FastAPI to create an AI agent with a modern UI. The project uses [assistant-ui](https://www.assistant-ui.com/) and Next.js.
 
 ## Overview
@@ -39,8 +38,15 @@ The backend is built using the LangChain CLI and utilizes LangGraph's `create_re
 
 ```bash
 cd backend
-poetry install
-poetry run python -m app.server
+uv pip install -r requirements.txt
+python -m app.server
+```
+
+#### adding packages
+
+```bash
+uv pip install <package>
+uv pip freeze > requirements.txt
 ```
 
 ### Frontend Setup
@@ -49,8 +55,8 @@ The frontend is generated using the assistant-ui CLI tool.
 
 ```bash
 cd frontend
-yarn install
-yarn dev
+pnpm install
+pnpm dev
 ```
 
 ## Credits

@@ -1,15 +1,22 @@
-from langchain_openai import ChatOpenAI
-from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
-from langchain_core.messages import SystemMessage
-from langgraph.errors import NodeInterrupt
-from langchain_core.tools import BaseTool
+from datetime import datetime, timezone
 from pydantic import BaseModel
-from .tools import tools
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
+from langgraph.graph import StateGraph, END, START
+from langchain_core.messages import AIMessage
+from app.core.config import get_settings
+
+# from .tools import tools
 from .state import AgentState
 
-
-model = ChatOpenAI()
+model = OpenAIModel(
+    "gpt-4o-mini-2024-07-18",
+    provider=OpenAIProvider(
+        api_key=get_settings().appconfig.openai_api_key.get_secret_value()
+    ),
+)
+pydantic_agent = Agent(model=model)
 
 
 def should_continue(state):
@@ -28,63 +35,43 @@ class AnyArgsSchema(BaseModel):
         extra = "allow"
 
 
-class FrontendTool(BaseTool):
-    def __init__(self, name: str):
-        super().__init__(name=name, description="", args_schema=AnyArgsSchema)
-
-    def _run(self, *args, **kwargs):
-        # Since this is a frontend-only tool, it might not actually execute anything.
-        # Raise an interrupt or handle accordingly.
-        raise NodeInterrupt("This is a frontend tool call")
-
-    async def _arun(self, *args, **kwargs) -> str:
-        # Similarly handle async calls
-        raise NodeInterrupt("This is a frontend tool call")
-
-
-def get_tool_defs(config):
-    frontend_tools = [
-        {"type": "function", "function": tool}
-        for tool in config["configurable"]["frontend_tools"]
-    ]
-    return tools + frontend_tools
+@pydantic_agent.tool_plain
+def get_stock_price(stock: str):
+    return {
+        "AAPL": {
+            "symbol": "AAPL",
+            "company_name": "Apple Inc.",
+            "current_price": 173.50,
+            "change": 2.35,
+            "change_percent": 1.37,
+            "volume": 52436789,
+            "market_cap": "2.73T",
+            "pe_ratio": 28.5,
+            "fifty_two_week_high": 198.23,
+            "fifty_two_week_low": 124.17,
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    }
 
 
-def get_tools(config):
-    frontend_tools = [
-        FrontendTool(tool.name) for tool in config["configurable"]["frontend_tools"]
-    ]
-    return tools + frontend_tools
-
-
-async def call_model(state, config):
-    system = config["configurable"]["system"]
-
-    messages = [SystemMessage(content=system)] + state["messages"]
-    model_with_tools = model.bind_tools(get_tool_defs(config))
-    response = await model_with_tools.ainvoke(messages)
+async def agent(state: AgentState):
+    query = state["messages"][-1].content
+    q = " ".join(q["text"] for q in query)
+    print(f"Query: {q}")
+    result = await pydantic_agent.run(q)
     # We return a list, because this will get added to the existing list
-    return {"messages": response}
+    return {"messages": [AIMessage(content=result.data)]}
 
 
-async def run_tools(input, config, **kwargs):
-    tool_node = ToolNode(get_tools(config))
-    return await tool_node.ainvoke(input, config, **kwargs)
+def create_workflow():
+    # Define a new graph
+    workflow = StateGraph(AgentState)
+
+    workflow.add_node("agent", agent)
+
+    workflow.add_edge(START, "agent")
+    workflow.add_edge("agent", END)
+    return workflow.compile()
 
 
-# Define a new graph
-workflow = StateGraph(AgentState)
-
-workflow.add_node("agent", call_model)
-workflow.add_node("tools", run_tools)
-
-workflow.set_entry_point("agent")
-workflow.add_conditional_edges(
-    "agent",
-    should_continue,
-    ["tools", END],
-)
-
-workflow.add_edge("tools", "agent")
-
-assistant_ui_graph = workflow.compile()
+assistant_ui_graph = create_workflow()
