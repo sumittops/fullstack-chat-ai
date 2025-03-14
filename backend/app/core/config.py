@@ -29,7 +29,7 @@ _logger = get_logger(__name__)
 
 
 class Security(BaseModel):
-    jwt_issuer: str = "meowchat"
+    jwt_issuer: str = "meowwchat"
     jwt_secret_key: SecretStr
     jwt_access_token_expire_secs: int = 24 * 3600  # 1d
     refresh_token_expire_secs: int = 28 * 24 * 3600  # 28d

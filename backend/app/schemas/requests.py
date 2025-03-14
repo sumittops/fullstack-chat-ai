@@ -21,6 +21,7 @@ class UserCreateRequest(BaseRequest):
     password: str
 
 
-class NewThreadWithPromptRequest(BaseRequest):
+class ThreadChatMessageRequest(BaseRequest):
     prompt: str
-    attachments: Optional[list[Any]] = []
+    content_type: str = "text"
+    is_new_chat: bool = False

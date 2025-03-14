@@ -1,5 +1,5 @@
 from typing import Any
-from sqlalchemy import BigInteger, Boolean, ForeignKey, JSON, String
+from sqlalchemy import BigInteger, Text, ForeignKey, JSON, String
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from app.models.base_model import Base
 
@@ -7,7 +7,7 @@ from app.models.base_model import Base
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    content: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
     content_type: Mapped[str] = mapped_column(String(16), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     usage: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)

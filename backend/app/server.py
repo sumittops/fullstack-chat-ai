@@ -7,7 +7,7 @@ from app.add_langgraph_route import add_langgraph_route
 
 app_settings = get_settings()
 app = FastAPI(
-    docs_url="/docs", title="MeowChat API", description="Makes you 'Meowwwwww'"
+    docs_url="/docs", title="MeowwChat API", description="Makes you 'meowwwwww'"
 )
 # cors
 app.add_middleware(

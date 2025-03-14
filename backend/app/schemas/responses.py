@@ -37,7 +37,6 @@ class ThreadListResponse(BaseResponse):
 
 
 class ChatMessageResponse(BaseResponse):
-    id: int
     content: str
     content_type: str
     role: str
