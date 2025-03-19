@@ -1,4 +1,5 @@
-import { useRouter } from 'next/router'
+'use client'
+import { useRouter } from 'next/navigation'
 import { Toaster } from '@/components/ui/toaster'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEffect } from 'react'

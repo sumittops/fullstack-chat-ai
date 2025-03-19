@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
+  signUp: (displayName: string, email: string, password: string) => Promise<Response>
   isAuthenticated: boolean
 }
 
@@ -72,6 +73,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null)
   }
 
+  const signUp = async (displayName: string, email: string, password: string) => {
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ display_name: displayName, email, password }),
+    })
+    return response
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -79,6 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         login,
         logout,
+        signUp,
         auth,
         isAuthenticated: !!auth,
       }}

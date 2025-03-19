@@ -6,43 +6,42 @@ import api from '../lib/api'
 // Generic fetcher function for SWR
 const fetcher = (url: string) => api.get(url)
 
-export const useGetData = (endpoint: string, options: SWRConfiguration = {}) => {
-  return useSWR(endpoint, fetcher, options)
+export const useGetData = <T>(endpoint: string, options: SWRConfiguration = {}) => {
+  return useSWR<T>(endpoint, fetcher, options)
 }
 
-export const usePostData = (endpoint: string, options: SWRConfiguration = {}) => {
-  const { mutate } = useSWR(endpoint, options)
+export const usePostData = <T>(endpoint: string, options: SWRConfiguration = {}) => {
+  const { mutate } = useSWR<T>(endpoint, options)
 
   const postData = async (data: any) => {
     const response = await api.post(endpoint, data)
     // Optionally trigger revalidation of affected data
-    mutate((key: string) => key.startsWith(endpoint), true)
+    mutate()
     return response
   }
 
   return { postData }
 }
 
-export const usePutData = (endpoint: string, options: SWRConfiguration = {}) => {
-  const { mutate } = useSWR(endpoint, options)
+export const usePutData = <T>(endpoint: string, options: SWRConfiguration = {}) => {
+  const { mutate } = useSWR<T>(endpoint, options)
 
   const putData = async (data: any) => {
     const response = await api.put(endpoint, data)
     // Optionally trigger revalidation of affected data
-    mutate(endpoint, true)
+    mutate()
     return response
   }
 
   return { putData }
 }
 
-export const useDeleteData = (endpoint: string, options: SWRConfiguration = {}) => {
-  const { mutate } = useSWR(endpoint, options)
+export const useDeleteData = <T>(endpoint: string, options: SWRConfiguration = {}) => {
+  const { mutate } = useSWR<T>(endpoint, options)
 
   const deleteData = async () => {
     const response = await api.delete(endpoint)
-    // Optionally trigger revalidation of affected data
-    mutate(endpoint, true)
+    mutate()
     return response
   }
 

@@ -10,11 +10,14 @@ import { useState } from 'react'
 import { convertMessage } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
+import ThreadComposer from './ThreadComposer'
+import ThreadStateContext from '@/contexts/ThreadStateContext'
 
 export default function NewChat() {
   const router = useRouter()
   const { auth } = useAuth()
   const [isRunning, setIsRunning] = useState(false)
+  const [selectedModel, setSelectedModel] = useState('GPT_4O_MINI')
   const [messages, setMessages] = useState<any[]>([])
   const onNew = async (message: AppendMessage) => {
     const content = (message.content[0] as TextContentPart).text.trim()
@@ -23,7 +26,7 @@ export default function NewChat() {
       setIsRunning(true)
       const resp = await fetch(`/api/threads/new`, {
         method: 'post',
-        body: JSON.stringify({ prompt: content }),
+        body: JSON.stringify({ prompt: content, model_code: selectedModel }),
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${auth['access_token']}`,
@@ -44,17 +47,16 @@ export default function NewChat() {
     onNew,
   })
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      <Thread
-        welcome={{
-          message: 'Mmmkay! How can I help?',
-          suggestions: [
-            { prompt: 'Write a story on cat and mouse' },
-            { prompt: 'What did the cat say to his human?' },
-            { prompt: 'Help me with this math problem.' },
-          ],
-        }}
-      />
-    </AssistantRuntimeProvider>
+    <ThreadStateContext.Provider value={{ modelName: selectedModel, setThreadModel: setSelectedModel }}>
+      <AssistantRuntimeProvider runtime={runtime}>
+        <Thread
+          welcome={{
+            message: 'Mmmkay! How can I help?',
+          }}
+          components={{ Composer: ThreadComposer }}
+          assistantAvatar={{ src: '/agent-avatar.jpg' }}
+        />
+      </AssistantRuntimeProvider>
+    </ThreadStateContext.Provider>
   )
 }

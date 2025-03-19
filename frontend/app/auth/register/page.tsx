@@ -10,26 +10,26 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import RandomCatGif from '@/components/RandomCatGif'
-import { RocketIcon } from 'lucide-react'
+import { Handshake } from 'lucide-react'
 import Link from 'next/link'
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Must be a valid email address' }),
-  password: z.string().min(6, { message: 'Password must be a minimum of 6 characters in length.' }),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters long.' }),
+  displayName: z.string().min(2, { message: 'Your name must be at least 2 characters long.' }),
 })
 
-export default function LoginPage() {
-  const { login, isAuthenticated } = useAuth()
+export default function SignUpPage() {
+  const { signUp, isAuthenticated } = useAuth()
   const router = useRouter()
   const [isSubmitting, setSubmitting] = useState(false)
   const { toast } = useToast()
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: { email: '' },
+    defaultValues: { email: '', password: '' },
   })
   useEffect(() => {
-    console.log(isAuthenticated)
     if (isAuthenticated) router.replace('/app')
   }, [isAuthenticated, router])
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -37,11 +37,11 @@ export default function LoginPage() {
     try {
       setSubmitting(true)
       console.log(values)
-      await login(values.email, values.password)
+      await signUp(values.displayName, values.email, values.password)
     } catch (e) {
       console.error(e)
       const { dismiss } = toast({
-        title: 'Invalid email or password',
+        title: 'Failed to sign up. Please try again.',
         variant: 'destructive',
       })
       setTimeout(dismiss, 3300)
@@ -54,20 +54,34 @@ export default function LoginPage() {
     <div className='grid h-screen grid-cols-1 md:grid-cols-2'>
       <div className='col-span-1 h-full p-8 px-12 flex flex-col justify-center space-y-4'>
         <div>
-          <h2 className='text-2xl font-medium'>Sign In to MeowwChat</h2>
-          <div className='text-sm text-slate-500'>Use your credentials, dummy.</div>
+          <h2 className='text-2xl font-medium'>Sign Up for MeowwChat</h2>
+          <div className='text-sm text-slate-500'>And make sure to memorize / save your password!</div>
         </div>
         <div className='max-w-lg'>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className='space-y-2'>
+              <FormField
+                name='displayName'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Your name</FormLabel>
+                    <FormControl>
+                      <Input placeholder='John Doe' {...field} autoFocus />
+                    </FormControl>
+
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 name='email'
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Email address</FormLabel>
                     <FormControl>
-                      <Input placeholder='john@example.com' {...field} autoFocus />
+                      <Input placeholder='user@example.com' {...field} />
                     </FormControl>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -84,16 +98,16 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <div className='text-slate-500'>
-                Don't have an account?
-                <Link href='/auth/register'>
-                  <Button variant={'link'}>Sign Up</Button>
+              <div className='text-slate-500 text-sm'>
+                Already have an account?
+                <Link href='/auth/login'>
+                  <Button variant={'link'}>Sign In</Button>
                 </Link>
               </div>
               <div className='flex justify-end pt-4'>
                 <Button type='submit' size='lg' disabled={isSubmitting}>
-                  <RocketIcon />
-                  Sign In
+                  Sign Up
+                  <Handshake />
                 </Button>
               </div>
             </form>

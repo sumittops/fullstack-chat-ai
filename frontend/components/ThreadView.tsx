@@ -14,13 +14,14 @@ import { useAuth } from '@/contexts/AuthContext'
 import { convertMessage, dedupeById } from '@/lib/utils'
 import { Dict } from '@/lib/types'
 import ThreadComposer from './ThreadComposer'
+import ThreadStateContext from '@/contexts/ThreadStateContext'
 
 const MarkdownText = makeMarkdownText()
 async function postMessageToThread(
   accessToken: string,
   threadId: string,
   message: string,
-  handleToken: (token: string) => any,
+  handleToken: (token: string) => void,
   isNewChat: boolean = false
 ) {
   const payload = { prompt: message, content_type: 'text', is_new_chat: isNewChat }
@@ -60,8 +61,8 @@ type ChatMessageType = {
 
 export function ThreadViewManager({ threadId }: { threadId: string }) {
   const [isRunning, setIsRunning] = useState(false)
-  const { isLoading, data: messages, mutate } = useGetData(`/threads/${threadId}/chat`)
-  const { data: thread } = useGetData(`/threads/${threadId}`)
+  const { isLoading, data: messages, mutate } = useGetData<Dict[]>(`/threads/${threadId}/chat`)
+  const { data: thread, mutate: mutateThreadDetails } = useGetData<Dict>(`/threads/${threadId}`)
   const [streamingResponse, setStreamingResponse] = useState<ChatMessageType | null>(null)
   const [tempUserMessage, setTempUserMessage] = useState<ChatMessageType | null>(null)
   const { auth } = useAuth()
@@ -75,6 +76,7 @@ export function ThreadViewManager({ threadId }: { threadId: string }) {
           try {
             return JSON.parse(line)
           } catch (e) {
+            console.log(e)
             return null
           }
         })
@@ -84,19 +86,23 @@ export function ThreadViewManager({ threadId }: { threadId: string }) {
       console.log(e)
     }
   }
-  const runApi = async (message: string, isNewChat = false) => {
-    try {
-      setIsRunning(true)
-      await postMessageToThread(auth['access_token'], threadId, message, handleStreamingResponse, isNewChat)
-      await mutate()
-      setStreamingResponse(null)
-      setTempUserMessage(null)
-    } catch (e) {
-      console.log(e)
-    } finally {
-      setIsRunning(false)
-    }
-  }
+  const runApi = useCallback(
+    async (message: string, isNewChat = false) => {
+      try {
+        setIsRunning(true)
+        await postMessageToThread(auth['access_token'], threadId, message, handleStreamingResponse, isNewChat)
+        await mutate()
+        setStreamingResponse(null)
+        setTempUserMessage(null)
+        setTimeout(mutateThreadDetails, 1000)
+      } catch (e) {
+        console.log(e)
+      } finally {
+        setIsRunning(false)
+      }
+    },
+    [threadId, auth, mutate, mutateThreadDetails]
+  )
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const msg = (message.content[0] as TextContentPart).text
@@ -129,21 +135,29 @@ export function ThreadViewManager({ threadId }: { threadId: string }) {
     if (Array.from(messages || []).length == 1) {
       firstCall()
     }
-  }, [messages])
+  }, [messages, runApi])
 
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      <ThreadView isLoading={isLoading || isRunning} thread={thread} />
-    </AssistantRuntimeProvider>
+    <ThreadStateContext.Provider value={{ modelName: thread ? thread.model_code : '', threadId }}>
+      <AssistantRuntimeProvider runtime={runtime}>
+        <ThreadView isLoading={isLoading || isRunning} thread={thread} />
+      </AssistantRuntimeProvider>
+    </ThreadStateContext.Provider>
   )
 }
-export default function ThreadView({ thread }: { isLoading: boolean; thread: any }) {
+export default function ThreadView({ thread }: { isLoading: boolean; thread: Dict | undefined }) {
   return (
-    <div className='relative h-screen'>
-      <div className='flex items-stretch py-3.5 justify-between absolute left-0 right-0 px-8 space-x-4 bg-sidebar border-b border-box z-20'>
+    <div className='relative'>
+      <div className='flex items-stretch py-3 justify-between absolute left-0 right-0 px-8 space-x-4'>
         <h1 className='text-xl font-semibold'>{(thread || {})['title'] || 'Uknown title'}</h1>
       </div>
-      <Thread assistantMessage={{ components: { Text: MarkdownText } }} components={{ Composer: ThreadComposer }} />
+      <div>
+        <Thread
+          assistantMessage={{ components: { Text: MarkdownText } }}
+          components={{ Composer: ThreadComposer }}
+          assistantAvatar={{ src: '/agent-avatar.jpg' }}
+        />
+      </div>
     </div>
   )
 }

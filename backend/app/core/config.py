@@ -52,6 +52,8 @@ class Database(BaseModel):
 
 
 class AppConfig(BaseModel):
+    gemini_api_key: SecretStr
+    groq_api_key: SecretStr
     openai_api_key: SecretStr
 
 

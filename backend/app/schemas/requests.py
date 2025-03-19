@@ -25,3 +25,4 @@ class ThreadChatMessageRequest(BaseRequest):
     prompt: str
     content_type: str = "text"
     is_new_chat: bool = False
+    model_code: str = "gpt-4o-mini"

@@ -36,6 +36,14 @@ class ThreadListResponse(BaseResponse):
     update_time: datetime
 
 
+class ThreadDetailResponse(BaseResponse):
+    id: str
+    model_code: str
+    title: Optional[str] = None
+    create_time: datetime
+    update_time: datetime
+
+
 class ChatMessageResponse(BaseResponse):
     content: str
     content_type: str

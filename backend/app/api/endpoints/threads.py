@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pydantic_ai import Agent
+from pydantic_ai.usage import UsageLimits
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelMessage,
@@ -11,7 +12,9 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.providers.google_gla import GoogleGLAProvider
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logger import get_logger
@@ -25,6 +28,7 @@ from app.schemas.requests import ThreadChatMessageRequest
 from app.schemas.responses import (
     ChatMessageResponse,
     CreateThreadResponse,
+    ThreadDetailResponse,
     ThreadListResponse,
 )
 
@@ -87,7 +91,7 @@ def to_model_chat_message(message: ChatMessage) -> ModelMessage:
         )
 
 
-@router.get("/{thread_id}", response_model=ThreadListResponse)
+@router.get("/{thread_id}", response_model=ThreadDetailResponse)
 async def get_thead_details(
     thread_id: str,
     session: AsyncSession = Depends(get_session),
@@ -101,7 +105,13 @@ async def get_thead_details(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Thread {thread_id} not found.",
         )
-    return result_thread
+    return {
+        "id": result_thread.id,
+        "model_code": result_thread.config.get("model_code", "GPT_4O_MINI"),
+        "title": result_thread.title,
+        "create_time": result_thread.create_time,
+        "update_time": result_thread.update_time,
+    }
 
 
 @router.get("/{thread_id}/chat", response_model=list[ChatMessageResponse])
@@ -125,6 +135,38 @@ async def get_chat(
     )
     all_messages = results.scalars().all()
     return all_messages
+
+
+def get_model_config(model_name: str) -> dict | None:
+    model_code_config = {
+        "GPT_4O": {
+            "provider": "openai",
+            "name": "gpt-4o",
+        },
+        "GPT_4O_MINI": {
+            "provider": "openai",
+            "name": "gpt-4o-mini",
+        },
+        "O3_MINI": {
+            "provider": "openai",
+            "name": "o3-mini",
+        },
+        "GROQ_LLAMA_3_3_70B": {
+            "provider": "groq",
+            "name": "llama-3.3-70b-versatile",
+            "base_url": "https://api.groq.com/openai/v1",
+        },
+        "GROQ_DEEPSEEK_R1_DISTILL_LLAMA_3.3_70B": {
+            "provider": "groq",
+            "name": "deepseek-r1-distill-llama-70b",
+            "base_url": "https://api.groq.com/openai/v1",
+        },
+        "GEMINI_2.0_FLASH": {"provder": "google", "name": "gemini-2.0-flash"},
+        "GEMINI_2.0_FLASH_LITE": {"provder": "google", "name": "gemini-2.0-flash-lite"},
+    }
+    if model_name in model_code_config:
+        return model_code_config.get(model_name)
+    return None
 
 
 @router.post("/{thread_id}/chat")
@@ -160,18 +202,35 @@ async def post_chat_message(
 
         for message in relevant_messages.scalars().all():
             message_history.append(to_model_chat_message(message))
-
-        model = OpenAIModel(
-            model_name="gpt-4o-mini",
-            provider=OpenAIProvider(
-                api_key=get_settings().appconfig.openai_api_key.get_secret_value()
-            ),
-        )
+        app_config = get_settings().appconfig
+        provider_name = thread.config.get("provider", "openai")
+        model_name = thread.config.get("name", "gpt-4o-mini")
+        if provider_name == "google":
+            api_key = app_config.gemini_api_key.get_secret_value()
+            provider = GoogleGLAProvider(api_key)
+            model = GeminiModel(model_name=model_name, provider=provider)
+        elif provider_name in ["openai", "groq"]:
+            api_key = (
+                app_config.groq_api_key
+                if provider_name == "groq"
+                else app_config.openai_api_key
+            ).get_secret_value()
+            base_url = thread.config.get("base_url")
+            provider = OpenAIProvider(api_key=api_key, base_url=base_url)
+            model = OpenAIModel(
+                model_name=model_name,
+                provider=provider,
+            )
+        else:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unsupported LLM provider")
         agent = Agent(model=model, instrument=True)
-
+        usage_limits = UsageLimits(
+            request_limit=5,
+        )
         async with agent.run_stream(
             message_history[0].parts[0].content if body.is_new_chat else body.prompt,
             message_history=[] if body.is_new_chat else message_history,
+            usage_limits=usage_limits,
         ) as result:
             async for text in result.stream():
                 m = ModelResponse(parts=[TextPart(text)], timestamp=result.timestamp())
@@ -201,9 +260,14 @@ async def create_thread(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    model_config = get_model_config(body.model_code)
+    if not model_config:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported model code."
+        )
     new_thread = Thread(
         user_id=user.id,
-        config={"provider": "openai", "model": "gpt-4o-mini"},
+        config=dict(**model_config, model_code=body.model_code),
     )
     session.add(new_thread)
     await session.commit()
